@@ -25,8 +25,8 @@ public:
         int bound = 0;
         Node* next = nullptr;
         Node** fast_search_list = nullptr;
-        int fast_list_len = 0; // extra member allowed
-        int idx = 0;
+        int fast_list_len = 0;
+        int idx = 0; // index in traversal order starting from head
 
         Node(int b, int fast_search_list_size) {
             bound = b;
@@ -62,8 +62,6 @@ private:
 
     void BuildFastSearchList() {
         if (list_size <= 0 || fast_search_list_size <= 0) return;
-        // Build jump pointers as 2^k successors
-        // Gather nodes in vector in traversal order starting at head
         std::vector<Node*> nodes;
         nodes.reserve(list_size);
         Node* cur = head;
@@ -83,16 +81,20 @@ private:
         }
     }
 
+    // Accelerated search: find node where code should reside
     Node* FindNode(int code) const {
         if (!head) return nullptr;
         if (code <= head->bound) return head;
         Node* cur = head;
+        // Only move forward without wrapping (idx increases) and keep bound < code
         for (int k = fast_search_list_size - 1; k >= 0; --k) {
             Node* nxt = (cur && cur->fast_search_list) ? cur->fast_search_list[k] : nullptr;
             if (!nxt) continue;
-            if (nxt->idx > cur->idx && nxt->bound < code) cur = nxt;
+            if (nxt->idx > cur->idx && nxt->bound < code) {
+                cur = nxt;
+            }
         }
-        return cur->next;
+        return cur->next; // next has bound >= code (no wrap), guaranteed to exist
     }
 
 public:
@@ -103,7 +105,6 @@ public:
             head = nullptr;
             return;
         }
-        // Create nodes and link in increasing order, circularly
         head = new Node(node_bounds[0], fast_search_list_size);
         Node* prev = head;
         for (int i = 1; i < list_size; ++i) {
@@ -111,14 +112,12 @@ public:
             prev->next = node;
             prev = node;
         }
-        prev->next = head; // circular
-
+        prev->next = head;
         BuildFastSearchList();
     }
 
     ~SpeedCircularLinkedList() {
         if (!head || list_size == 0) return;
-        // Delete all nodes in the cycle exactly once
         Node* cur = head->next;
         for (int i = 1; i < list_size; ++i) {
             Node* nxt = cur->next;
@@ -139,6 +138,7 @@ public:
             (target ? target : head)->kv_map[str] = value;
             return;
         }
+        // Fallback linear search
         if (code <= head->bound) { head->kv_map[str] = value; return; }
         Node* cur = head->next; Node* prev = head;
         while (cur != head) {
@@ -157,6 +157,7 @@ public:
             auto it = target->kv_map.find(str);
             return it == target->kv_map.end() ? T() : it->second;
         }
+        // Fallback linear
         if (code <= head->bound) {
             auto it = head->kv_map.find(str);
             return it == head->kv_map.end() ? T() : it->second;
