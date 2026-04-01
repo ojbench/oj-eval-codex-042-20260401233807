@@ -26,6 +26,7 @@ public:
         Node* next = nullptr;
         Node** fast_search_list = nullptr;
         int fast_list_len = 0;
+        Node* prev = nullptr;
         int idx = 0; // index in traversal order starting from head
 
         Node(int b, int fast_search_list_size) {
@@ -106,13 +107,16 @@ public:
             return;
         }
         head = new Node(node_bounds[0], fast_search_list_size);
-        Node* prev = head;
+        Node* prev_node = head;
         for (int i = 1; i < list_size; ++i) {
             Node* node = new Node(node_bounds[i], fast_search_list_size);
-            prev->next = node;
-            prev = node;
+            prev_node->next = node;
+            node->prev = prev_node;
+            prev_node = node;
         }
-        prev->next = head;
+        // close the cycle
+        prev_node->next = head;
+        head->prev = prev_node;
         BuildFastSearchList();
     }
 
@@ -134,8 +138,16 @@ public:
         int code = GetHashCode(str);
         if (!head) return;
         if (fast_search_list_size > 0) {
-            Node* target = FindNode(code);
-            (target ? target : head)->kv_map[str] = value;
+            Node* p = FindNode(code);
+            if (!p) p = head;
+            // Adjust locally to ensure correct bucket
+            if (p == head) {
+                while (code > p->bound) p = p->next;
+            } else {
+                while (p != head && code <= p->prev->bound) p = p->prev;
+                while (code > p->bound) p = p->next;
+            }
+            p->kv_map[str] = value;
             return;
         }
         // Fallback linear search
@@ -152,10 +164,16 @@ public:
         int code = GetHashCode(str);
         if (!head) return T();
         if (fast_search_list_size > 0) {
-            Node* target = FindNode(code);
-            if (!target) return T();
-            auto it = target->kv_map.find(str);
-            return it == target->kv_map.end() ? T() : it->second;
+            Node* p = FindNode(code);
+            if (!p) p = head;
+            if (p == head) {
+                while (code > p->bound) p = p->next;
+            } else {
+                while (p != head && code <= p->prev->bound) p = p->prev;
+                while (code > p->bound) p = p->next;
+            }
+            auto it = p->kv_map.find(str);
+            return it == p->kv_map.end() ? T() : it->second;
         }
         // Fallback linear
         if (code <= head->bound) {
